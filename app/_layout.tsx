@@ -88,6 +88,9 @@ export default function RootLayout() {
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="oauth/callback" />
+            <Stack.Screen name="pedido/[id]" options={{ presentation: "modal" }} />
+            <Stack.Screen name="nova-receita" options={{ presentation: "modal" }} />
+            <Stack.Screen name="nova-despesa" options={{ presentation: "modal" }} />
           </Stack>
           <StatusBar style="auto" />
         </QueryClientProvider>
