@@ -2,7 +2,7 @@ import { ScrollView, Text, View, FlatList, Pressable, ActivityIndicator } from "
 import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { PedidoCard } from "@/components/pedido-card";
-import { usePedidos } from "@/hooks/use-pedidos";
+import { usePedidosServer } from "@/hooks/use-pedidos-server";
 import { PedidoStatus } from "@/lib/types";
 import { useState } from "react";
 
@@ -15,7 +15,7 @@ const FILTROS: { label: string; status?: PedidoStatus }[] = [
 
 export default function ProducaoScreen() {
   const router = useRouter();
-  const { pedidos, loading } = usePedidos();
+  const { pedidos, loading } = usePedidosServer();
   const [filtroAtivo, setFiltroAtivo] = useState<PedidoStatus | undefined>(undefined);
 
   const pedidosFiltrados = filtroAtivo
@@ -74,7 +74,7 @@ export default function ProducaoScreen() {
         {pedidosFiltrados.length > 0 ? (
           <FlatList
             data={pedidosFiltrados}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item) => String(item.id)}
             renderItem={({ item }) => (
               <PedidoCard
                 pedido={item}

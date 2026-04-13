@@ -91,9 +91,11 @@ export function usePedidos() {
       total_pedidos: pedidos.length,
       em_producao: pedidos.filter((p) => p.status === "em_producao").length,
       concluidos_hoje: pedidos.filter(
-        (p) =>
-          p.status === "concluido" &&
-          p.data_conclusao?.startsWith(hoje)
+        (p) => {
+          if (p.status !== "concluido" || !p.data_conclusao) return false;
+          const dataStr = typeof p.data_conclusao === "string" ? p.data_conclusao : p.data_conclusao.toISOString();
+          return dataStr.startsWith(hoje);
+        }
       ).length,
       atrasados: pedidos.filter((p) => p.status === "atrasado").length,
     };

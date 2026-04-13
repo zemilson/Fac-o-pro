@@ -8,7 +8,7 @@ interface StatusBadgeProps {
 }
 
 const statusConfig: Record<PedidoStatus, { label: string; bgColor: string; textColor: string }> = {
-  novo: { label: "Novo", bgColor: "bg-blue-100", textColor: "text-blue-700" },
+  pendente: { label: "Pendente", bgColor: "bg-blue-100", textColor: "text-blue-700" },
   em_producao: { label: "Em Produção", bgColor: "bg-warning/20", textColor: "text-warning" },
   concluido: { label: "Concluído", bgColor: "bg-success/20", textColor: "text-success" },
   atrasado: { label: "Atrasado", bgColor: "bg-error/20", textColor: "text-error" },

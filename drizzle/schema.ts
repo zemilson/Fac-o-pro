@@ -25,4 +25,56 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
-// TODO: Add your tables here
+// Pedidos table
+export const pedidos = mysqlTable("pedidos", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  cliente: varchar("cliente", { length: 255 }).notNull(),
+  telefone: varchar("telefone", { length: 20 }).notNull(),
+  quantidade: int("quantidade").notNull(),
+  tipo_servico: varchar("tipo_servico", { length: 255 }).notNull(),
+  valor: int("valor").notNull(), // Armazenar em centavos (ex: 10050 = R$ 100.50)
+  descricao: text("descricao"),
+  observacoes: text("observacoes"),
+  status: mysqlEnum("status", ["pendente", "em_producao", "concluido", "atrasado"]).default("pendente").notNull(),
+  data_criacao: timestamp("data_criacao").defaultNow().notNull(),
+  data_entrega: timestamp("data_entrega").notNull(),
+  data_conclusao: timestamp("data_conclusao"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Pedido = typeof pedidos.$inferSelect;
+export type InsertPedido = typeof pedidos.$inferInsert;
+
+// Receitas table
+export const receitas = mysqlTable("receitas", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  data: timestamp("data").notNull(),
+  descricao: varchar("descricao", { length: 255 }).notNull(),
+  valor: int("valor").notNull(), // Armazenar em centavos
+  categoria: mysqlEnum("categoria", ["pedido", "outro"]).default("pedido").notNull(),
+  observacoes: text("observacoes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Receita = typeof receitas.$inferSelect;
+export type InsertReceita = typeof receitas.$inferInsert;
+
+// Despesas table
+export const despesas = mysqlTable("despesas", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  data: timestamp("data").notNull(),
+  descricao: varchar("descricao", { length: 255 }).notNull(),
+  valor: int("valor").notNull(), // Armazenar em centavos
+  categoria: mysqlEnum("categoria", ["tecido", "insumos", "aluguel", "outro"]).default("outro").notNull(),
+  observacoes: text("observacoes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Despesa = typeof despesas.$inferSelect;
+export type InsertDespesa = typeof despesas.$inferInsert;
