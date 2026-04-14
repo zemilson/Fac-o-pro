@@ -2,13 +2,13 @@ import { ScrollView, Text, View, Pressable, ActivityIndicator, Alert } from "rea
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { StatusBadge } from "@/components/status-badge";
-import { usePedidosServer } from "@/hooks/use-pedidos-server";
+import { usePedidos } from "@/hooks/use-pedidos";
 import { useState } from "react";
 
 export default function PedidoDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { obterPedido, atualizarPedido, excluirPedido, loading } = usePedidosServer();
+  const { obterPedido, atualizarPedido, excluirPedido, loading } = usePedidos();
   const [isUpdating, setIsUpdating] = useState(false);
 
   const pedido = obterPedido(id || "");
@@ -29,9 +29,8 @@ export default function PedidoDetailScreen() {
     );
   }
 
-  const formatarData = (data: string | Date) => {
-    const date = typeof data === "string" ? new Date(data) : data;
-    return date.toLocaleDateString("pt-BR", {
+  const formatarData = (data: string) => {
+    return new Date(data).toLocaleDateString("pt-BR", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
@@ -81,7 +80,7 @@ export default function PedidoDetailScreen() {
           {/* Cabeçalho */}
           <View className="flex-row items-center justify-between">
             <View className="flex-1">
-              <Text className="text-sm text-muted">Pedido #{String(pedido.id).slice(-4)}</Text>
+              <Text className="text-sm text-muted mb-1">Pedido #{pedido.id.slice(-4)}</Text>
               <Text className="text-2xl font-bold text-foreground">{pedido.cliente}</Text>
             </View>
             <StatusBadge status={pedido.status} />

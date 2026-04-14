@@ -1,7 +1,7 @@
 import { ScrollView, Text, View, Pressable, TextInput, ActivityIndicator, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
-import { useFinanceiroServer } from "@/hooks/use-financeiro-server";
+import { useFinanceiro } from "@/hooks/use-financeiro";
 import { ReceitaCategoria } from "@/lib/types";
 import { useState } from "react";
 
@@ -12,7 +12,7 @@ const CATEGORIAS: { label: string; value: ReceitaCategoria }[] = [
 
 export default function NovaReceitaScreen() {
   const router = useRouter();
-  const { criarReceita } = useFinanceiroServer();
+  const { criarReceita } = useFinanceiro();
   const [isLoading, setIsLoading] = useState(false);
 
   const [form, setForm] = useState({

@@ -19,9 +19,8 @@ const categoryLabels = {
 };
 
 export function FinanceCard({ item, type, onPress }: FinanceCardProps) {
-  const formatarData = (data: string | Date) => {
-    const date = typeof data === "string" ? new Date(data) : data;
-    return date.toLocaleDateString("pt-BR", {
+  const formatarData = (data: string) => {
+    return new Date(data).toLocaleDateString("pt-BR", {
       day: "2-digit",
       month: "2-digit",
     });

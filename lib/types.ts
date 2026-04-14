@@ -3,54 +3,46 @@
  */
 
 // Pedidos
-export type PedidoStatus = "pendente" | "em_producao" | "concluido" | "atrasado";
+export type PedidoStatus = "novo" | "em_producao" | "concluido" | "atrasado";
 
 export interface Pedido {
-  id: number | string;
-  userId: number;
+  id: string;
   cliente: string;
   telefone: string;
   quantidade: number;
   tipo_servico: string;
-  descricao: string | null;
-  data_entrega: Date | string; // ISO date
-  valor: number; // em centavos
+  descricao: string;
+  data_entrega: string; // ISO date
+  valor: number;
   status: PedidoStatus;
-  observacoes?: string | null;
-  data_criacao: Date | string; // ISO date
-  data_conclusao?: Date | string | null; // ISO date
-  createdAt?: Date;
-  updatedAt?: Date;
+  observacoes?: string;
+  data_criacao: string; // ISO date
+  data_conclusao?: string; // ISO date
 }
 
 // Receitas
 export type ReceitaCategoria = "pedido" | "outro";
 
 export interface Receita {
-  id: number | string;
-  userId: number;
-  data: Date | string; // ISO date
+  id: string;
+  data: string; // ISO date
   descricao: string;
-  valor: number; // em centavos
+  valor: number;
   categoria: ReceitaCategoria;
-  observacoes?: string | null;
-  createdAt?: Date;
-  updatedAt?: Date;
+  cliente?: string;
+  observacoes?: string;
 }
 
 // Despesas
 export type DespesaCategoria = "tecido" | "insumos" | "aluguel" | "outro";
 
 export interface Despesa {
-  id: number | string;
-  userId: number;
-  data: Date | string; // ISO date
+  id: string;
+  data: string; // ISO date
   descricao: string;
-  valor: number; // em centavos
+  valor: number;
   categoria: DespesaCategoria;
-  observacoes?: string | null;
-  createdAt?: Date;
-  updatedAt?: Date;
+  observacoes?: string;
 }
 
 // Resumo Financeiro

@@ -15,9 +15,8 @@ export function PedidoCard({ pedido, onPress }: PedidoCardProps) {
     (dataEntrega.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24)
   );
 
-  const formatarData = (data: string | Date) => {
-    const date = typeof data === "string" ? new Date(data) : data;
-    return date.toLocaleDateString("pt-BR", {
+  const formatarData = (data: string) => {
+    return new Date(data).toLocaleDateString("pt-BR", {
       day: "2-digit",
       month: "2-digit",
     });
@@ -36,7 +35,7 @@ export function PedidoCard({ pedido, onPress }: PedidoCardProps) {
         {/* Cabeçalho */}
         <View className="flex-row items-center justify-between mb-3">
           <View className="flex-1">
-            <Text className="text-sm text-muted">Pedido #{String(pedido.id).slice(-4)}</Text>
+            <Text className="text-sm text-muted">Pedido #{pedido.id.slice(-4)}</Text>
             <Text className="text-lg font-bold text-foreground">{pedido.cliente}</Text>
           </View>
           <StatusBadge status={pedido.status} size="sm" />

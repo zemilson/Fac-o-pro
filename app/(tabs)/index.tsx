@@ -21,22 +21,14 @@ export default function HomeScreen() {
   // Calcular resumo de produção
   const hoje = new Date().toISOString().split("T")[0];
   const emProducao = pedidos.filter((p) => p.status === "em_producao").length;
-  const concluidos = pedidos.filter((p) => {
-    if (p.status !== "concluido" || !p.data_conclusao) return false;
-    const dataStr = typeof p.data_conclusao === "string" ? p.data_conclusao : p.data_conclusao.toISOString();
-    return dataStr.startsWith(hoje);
-  }).length;
+  const concluidos = pedidos.filter(
+    (p) => p.status === "concluido" && p.data_conclusao?.startsWith(hoje)
+  ).length;
   const atrasados = pedidos.filter((p) => p.status === "atrasado").length;
 
   // Calcular resumo financeiro do dia
-  const receitasHoje = receitas.filter((r) => {
-    const dataStr = typeof r.data === "string" ? r.data : r.data.toISOString();
-    return dataStr.startsWith(hoje);
-  });
-  const despesasHoje = despesas.filter((d) => {
-    const dataStr = typeof d.data === "string" ? d.data : d.data.toISOString();
-    return dataStr.startsWith(hoje);
-  });
+  const receitasHoje = receitas.filter((r) => r.data.startsWith(hoje));
+  const despesasHoje = despesas.filter((d) => d.data.startsWith(hoje));
   const totalReceitas = receitasHoje.reduce((sum, r) => sum + r.valor, 0);
   const totalDespesas = despesasHoje.reduce((sum, d) => sum + d.valor, 0);
 
