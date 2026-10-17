@@ -1,0 +1,14 @@
+{
+  "name": "Ateliê Costura Pro",
+  "short_name": "Costura Pro",
+  "description": "Gestão completa para o seu ateliê de costura",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FAF0EE",
+  "theme_color": "#C06E7A",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
