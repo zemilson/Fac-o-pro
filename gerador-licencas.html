@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="referrer" content="no-referrer">
+  <title>Gerador privado de licenças</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #10131a; color: #edf0f6; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 28px 16px; }
+    main { width: min(760px, 100%); margin: 0 auto; }
+    h1 { margin: 0 0 6px; font-size: 25px; }
+    .sub, .muted { color: #a8b0bf; }
+    .card { margin-top: 20px; padding: 22px; border: 1px solid #303847; border-radius: 14px; background: #191e28; }
+    label { display: block; margin: 12px 0 6px; font-size: 13px; color: #c6cedb; }
+    input, select { width: 100%; min-height: 42px; padding: 9px 11px; border: 1px solid #434d5e; border-radius: 8px; background: #10131a; color: #fff; font: inherit; }
+    button { padding: 10px 14px; border: 0; border-radius: 8px; background: #d0ad6f; color: #18150f; font: inherit; font-weight: 700; cursor: pointer; }
+    button.secondary { border: 1px solid #515d70; background: transparent; color: #e4e9f0; }
+    button.danger { border: 1px solid #845454; background: transparent; color: #ffaaaa; }
+    button:disabled { opacity: .6; cursor: wait; }
+    .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
+    .message { min-height: 22px; margin-top: 12px; color: #ffaaaa; }
+    .code { overflow-wrap: anywhere; padding: 14px; border: 1px solid #41583f; border-radius: 8px; background: #111a14; color: #b9edb6; font: 13px/1.6 ui-monospace, monospace; user-select: all; }
+    .entry { padding: 15px 0; border-top: 1px solid #303847; }
+    .entry:first-child { border-top: 0; }
+    .entry-meta { margin: 5px 0 10px; color: #a8b0bf; font-size: 13px; }
+    .notice { margin-top: 16px; padding: 12px; border: 1px solid #665a3d; border-radius: 8px; color: #dbc68f; font-size: 13px; line-height: 1.5; }
+    [hidden] { display: none !important; }
+    @media (max-width: 520px) { body { padding: 18px 12px; } .card { padding: 17px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Gerador privado de licenças</h1>
+    <div class="sub">Ferramenta local do Atelier Costura Pro</div>
+    <div class="notice">Este painel só aceita conexões deste computador. Guarde a chave privada e o link temporário de acesso em sigilo. Cada licença fica vinculada ao e-mail informado e vence 30 ou 365 dias após a emissão.</div>
+    <section class="card" id="login">
+      <h2>Acesso do administrador</h2>
+      <label for="access-key">Chave temporária exibida no terminal</label>
+      <input id="access-key" type="password" autocomplete="new-password">
+      <div class="row"><button id="login-button">Entrar</button></div>
+      <div class="message" id="login-message" role="status"></div>
+    </section>
+    <div id="panel" hidden>
+      <section class="card">
+        <h2>Emitir código</h2>
+        <label for="customer">Nome do cliente</label>
+        <input id="customer" maxlength="100" autocomplete="off">
+        <label for="email">E-mail da conta do cliente</label>
+        <input id="email" type="email" maxlength="254" autocomplete="off">
+        <label for="plan">Plano</label>
+        <select id="plan">
+          <option value="MENSAL">Mensal — 30 dias</option>
+          <option value="ANUAL">Anual — 365 dias</option>
+        </select>
+        <div class="row"><button id="generate-button">Gerar licença</button></div>
+        <div class="message" id="generate-message" role="status"></div>
+        <div id="generated" hidden>
+          <label>Código gerado</label>
+          <div class="code" id="generated-code"></div>
+          <div class="row"><button class="secondary" id="copy-button">Copiar código</button></div>
+        </div>
+      </section>
+      <section class="card">
+        <h2>Validar código</h2>
+        <label for="validate-code">Código de licença</label>
+        <input id="validate-code" autocomplete="off">
+        <label for="validate-email">E-mail da conta</label>
+        <input id="validate-email" type="email" autocomplete="off">
+        <div class="row"><button class="secondary" id="validate-button">Verificar</button></div>
+        <div class="message" id="validate-message" role="status"></div>
+      </section>
+      <section class="card">
+        <div class="row" style="justify-content:space-between;margin-top:0">
+          <h2 style="margin:0">Histórico neste computador</h2>
+          <button class="secondary" id="export-button">Exportar .txt</button>
+        </div>
+        <div class="muted" id="history-empty" style="margin-top:14px">Nenhum código emitido ainda.</div>
+        <div id="history-list"></div>
+      </section>
+      <div class="row"><button class="secondary" id="logout-button">Encerrar sessão</button></div>
+    </div>
+  </main>
+  <script nonce="__CSP_NONCE__">
+    const loginSection = document.getElementById("login");
+    const panel = document.getElementById("panel");
+    const accessInput = document.getElementById("access-key");
+    const loginMessage = document.getElementById("login-message");
+    const generated = document.getElementById("generated");
+    const generatedCode = document.getElementById("generated-code");
+    const historyList = document.getElementById("history-list");
+    let currentCode = "";
+    const fragment = window.location.hash.slice(1);
+    if (fragment) {
+      sessionStorage.setItem("license-admin-key", fragment);
+      history.replaceState(null, "", window.location.pathname);
+    }
+    accessInput.value = sessionStorage.getItem("license-admin-key") || "";
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, char => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
+    }
+    async function api(path, options = {}) {
+      const response = await fetch(path, {
+        ...options,
+        headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+        body: options.body ? JSON.stringify(options.body) : undefined,
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "A solicitação falhou.");
+      return result;
+    }
+    function showPanel() {
+      loginSection.hidden = true;
+      panel.hidden = false;
+    }
+    function showLogin() {
+      loginSection.hidden = false;
+      panel.hidden = true;
+    }
+    async function refreshHistory() {
+      const { history: entries } = await api("/api/history");
+      document.getElementById("history-empty").hidden = entries.length !== 0;
+      historyList.innerHTML = entries.map(entry => `
+        <article class="entry">
+          <strong>${escapeHtml(entry.customer)}</strong>
+          <div class="entry-meta">${escapeHtml(entry.email)} · ${escapeHtml(entry.plan)} · Emitido em ${escapeHtml(entry.generatedAt)} · Vence em ${escapeHtml(entry.expiresAt)}</div>
+          <div class="code">${escapeHtml(entry.code)}</div>
+          <div class="row">
+            <button class="secondary" data-copy="${escapeHtml(entry.id)}">Copiar</button>
+            <button class="danger" data-delete="${escapeHtml(entry.id)}">Excluir do histórico</button>
+          </div>
+        </article>`).join("");
+    }
+    document.getElementById("login-button").addEventListener("click", async () => {
+      loginMessage.textContent = "";
+      try {
+        await api("/api/login", { method: "POST", body: { key: accessInput.value } });
+        sessionStorage.removeItem("license-admin-key");
+        accessInput.value = "";
+        showPanel();
+        await refreshHistory();
+      } catch (error) {
+        loginMessage.textContent = error.message;
+      }
+    });
+    document.getElementById("generate-button").addEventListener("click", async event => {
+      const button = event.currentTarget;
+      const message = document.getElementById("generate-message");
+      message.textContent = "";
+      generated.hidden = true;
+      const customer = document.getElementById("customer").value.trim();
+      const email = document.getElementById("email").value.trim();
+      const plan = document.getElementById("plan").value;
+      if (!customer || !email) {
+        message.textContent = "Informe o nome do cliente e o e-mail da conta.";
+        return;
+      }
+      if (!confirm(`Emitir uma licença ${plan} válida para ${email}? O código não poderá ser revogado neste gerador.`)) return;
+      button.disabled = true;
+      try {
+        const result = await api("/api/generate", {
+          method: "POST",
+          body: {
+            customer,
+            email,
+            plan,
+          },
+        });
+        currentCode = result.entry.code;
+        generatedCode.textContent = currentCode;
+        generated.hidden = false;
+        await refreshHistory();
+      } catch (error) {
+        message.textContent = error.message;
+      } finally {
+        button.disabled = false;
+      }
+    });
+    document.getElementById("copy-button").addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(currentCode);
+        document.getElementById("copy-button").textContent = "Copiado";
+      } catch {
+        document.getElementById("generate-message").textContent = "Não foi possível copiar. Selecione e copie o código manualmente.";
+      }
+    });
+    historyList.addEventListener("click", async event => {
+      const copyId = event.target.dataset.copy;
+      const deleteId = event.target.dataset.delete;
+      try {
+        if (copyId) {
+          const { history: entries } = await api("/api/history");
+          const entry = entries.find(item => item.id === copyId);
+          if (entry) await navigator.clipboard.writeText(entry.code);
+        }
+        if (deleteId && confirm("Excluir do histórico local? Isso não revoga o código.")) {
+          await api("/api/delete", { method: "POST", body: { id: deleteId } });
+          await refreshHistory();
+        }
+      } catch (error) {
+        document.getElementById("generate-message").textContent = error.message;
+      }
+    });
+    document.getElementById("validate-button").addEventListener("click", async () => {
+      const message = document.getElementById("validate-message");
+      message.textContent = "";
+      try {
+        const result = await api("/api/validate", {
+          method: "POST",
+          body: {
+            code: document.getElementById("validate-code").value,
+            email: document.getElementById("validate-email").value,
+          },
+        });
+        message.textContent = result.valid
+          ? `Código válido: plano ${result.plan}, vence em ${result.expiresAt}.`
+          : "Código inválido, vencido ou vinculado a outro e-mail.";
+        message.style.color = result.valid ? "#b9edb6" : "#ffaaaa";
+      } catch (error) {
+        message.textContent = error.message;
+      }
+    });
+    document.getElementById("export-button").addEventListener("click", async () => {
+      try {
+        const { history: entries } = await api("/api/history");
+        const text = entries.map(entry => [entry.generatedAt, entry.customer, entry.email, entry.plan, entry.expiresAt, entry.code].join(" | ")).join("\n");
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }));
+        link.download = "licencas-atelier-costura.txt";
+        link.click();
+        URL.revokeObjectURL(link.href);
+      } catch (error) {
+        document.getElementById("generate-message").textContent = error.message;
+      }
+    });
+    document.getElementById("logout-button").addEventListener("click", async () => {
+      try {
+        await api("/api/logout", { method: "POST", body: {} });
+        showLogin();
+      } catch (error) {
+        document.getElementById("login-message").textContent = error.message;
+      }
+    });
+    api("/api/history").then(() => {
+      showPanel();
+      return refreshHistory();
+    }).catch(() => showLogin());
+  </script>
+</body>
+</html>

@@ -1,33 +1,90 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { registerPlugin } from "@capacitor/core";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+import { LICENSE_PUBLIC_KEY } from "./license-public-key.js";
+
+const ContactPicker = registerPlugin("ContactPicker", {
+  web: {
+    async pickContact() {
+      const contacts = navigator.contacts;
+      if (!contacts?.select) {
+        throw new Error("A seleção de contatos está disponível no aplicativo Android instalado.");
+      }
+      const [contact] = await contacts.select(["name", "tel"], { multiple: false });
+      return {
+        cancelled: !contact,
+        name: contact?.name?.[0] || "",
+        phone: contact?.tel?.[0] || "",
+      };
+    },
+  },
+});
 
 
 // ─── Licenciamento ───────────────────────────────────────────────────────────
-const CHAVE_SECRETA = "ZEMCOST2024";
 const TRIAL_DIAS    = 15;
 const STORAGE_AUTH    = "oficina_auth";
 const STORAGE_USERS   = "oficina_users";
 const STORAGE_LICENSE = "oficina_license";
 
-function hashCode(str) {
-  let h = 0;
-  for (let i = 0; i < str.length; i++) h = Math.imul(31, h) + str.charCodeAt(i) | 0;
-  return Math.abs(h).toString(36).toUpperCase().padStart(6,"0").slice(0,6);
+function base64UrlToBytes(value) {
+  const base64 = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+  return Uint8Array.from(atob(padded), char => char.charCodeAt(0));
 }
 
-// Valida códigos mensais/anuais e mantém suporte a licenças vitalícias antigas.
-function validarLicenca(codigo) {
+let licensePublicKeyPromise;
+async function validarLicenca(codigo, email) {
+  const partes = codigo.trim().split(".");
+  if (partes.length !== 4 || partes[0].toUpperCase() !== "COSTURA" || !["MENSAL", "ANUAL"].includes(partes[1].toUpperCase())) return null;
+  const plano = partes[1].toUpperCase();
+  const payloadSegment = partes[2];
+  const signatureSegment = partes[3];
+  if (!/^[A-Z0-9_-]+$/i.test(payloadSegment) || !/^[A-Z0-9_-]+$/i.test(signatureSegment)) return null;
+
+  let payload;
+  let signatureBytes;
   try {
-    const partes = codigo.trim().toUpperCase().split("-");
-    if (partes.length !== 4) return null;
-    const [prefixo, plano, seq, check] = partes;
-    if (prefixo !== "COSTURA") return null;
-    if (!["VITALICIO","MENSAL","ANUAL"].includes(plano)) return null;
-    const base = `-${plano}-${seq}`;
-    if (check !== hashCode(base + CHAVE_SECRETA)) return null;
-    return plano;
-  } catch { return null; }
+    const bytes = base64UrlToBytes(payloadSegment);
+    payload = JSON.parse(new TextDecoder().decode(bytes));
+    signatureBytes = base64UrlToBytes(signatureSegment);
+  } catch {
+    return null;
+  }
+  if (
+    payload?.v !== 2 ||
+    payload.plan !== plano ||
+    !Number.isSafeInteger(payload.issuedAt) ||
+    !Number.isSafeInteger(payload.expiresAt) ||
+    typeof payload.emailHash !== "string" ||
+    typeof payload.nonce !== "string"
+  ) return null;
+
+  if (!globalThis.crypto?.subtle) {
+    throw new Error("Este dispositivo não oferece suporte à verificação segura de licenças.");
+  }
+  licensePublicKeyPromise ??= crypto.subtle.importKey(
+    "spki",
+    base64UrlToBytes(LICENSE_PUBLIC_KEY.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")),
+    { name: "RSA-PSS", hash: "SHA-256" },
+    false,
+    ["verify"]
+  );
+  const signatureValid = await crypto.subtle.verify(
+    { name: "RSA-PSS", saltLength: 32 },
+    await licensePublicKeyPromise,
+    signatureBytes,
+    new TextEncoder().encode(`COSTURA-${plano}-${payloadSegment}`)
+  );
+  if (!signatureValid || payload.expiresAt <= Date.now() || payload.issuedAt > Date.now() + 300000) return null;
+
+  const normalizedEmail = email.trim().toLowerCase();
+  const emailHashBytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(normalizedEmail));
+  const emailHash = btoa(String.fromCharCode(...new Uint8Array(emailHashBytes)))
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  if (emailHash !== payload.emailHash) return null;
+  return { plano, expiresAt: payload.expiresAt };
 }
 
 // Mantém as licenças existentes em dias corridos; novas anuais valem 365 dias.
@@ -54,10 +111,10 @@ function verificarLicenca() {
 
   // Mensal — verifica vencimento
   if (["mensal", "anual"].includes(lic?.tipo)) {
-    const venc = calcVencimento(lic.ativadoEm, lic.tipo);
+    const venc = lic.expiraEm ? new Date(lic.expiraEm) : calcVencimento(lic.ativadoEm, lic.tipo);
     const hoje = new Date();
     const diff = Math.floor((venc - hoje) / (1000*60*60*24));
-    if (diff > 0) return { tipo: lic.tipo, diasRestantes: diff, vencimento: venc.toLocaleDateString("pt-BR") };
+    if (!Number.isNaN(venc.getTime()) && diff > 0) return { tipo: lic.tipo, diasRestantes: diff, vencimento: venc.toLocaleDateString("pt-BR") };
     return { tipo: "expirado", diasRestantes: 0, motivo: `${lic.tipo}_vencida` };
   }
 
@@ -487,8 +544,8 @@ export default function AuthGate() {
 
   const login = (s) => { saveAuth(s); setSession(s); setLicenca(verificarLicenca()); };
   const logout = () => { clearAuth(); setSession(null); };
-  const ativarLicenca = (tipo) => {
-    const lic = { tipo, ativadoEm: new Date().toISOString() };
+  const ativarLicenca = (tipo, expiraEm, codigo) => {
+    const lic = { tipo, ativadoEm: new Date().toISOString(), expiraEm: new Date(expiraEm).toISOString(), codigo };
     saveLicense(lic);
     setLicenca(verificarLicenca());
   };
@@ -502,7 +559,7 @@ export default function AuthGate() {
 
   if (splash) return <SplashScreen fadeOut={splashOut} />;
   if (!session) return <LoginScreen onLogin={login} licenca={licenca} />;
-  if (licenca.tipo === "expirado") return <TelaExpirado onAtivar={ativarLicenca} onLogout={logout} motivo={licenca.motivo} />;
+  if (licenca.tipo === "expirado") return <TelaExpirado onAtivar={ativarLicenca} onLogout={logout} motivo={licenca.motivo} email={session.email} />;
   return <OficinaApp session={session} onLogout={logout} licenca={licenca} onAtivar={ativarLicenca} />;
 }
 
@@ -805,7 +862,7 @@ function Ordens({ data, save, goBack }) {
         </div>
         <div class="doc-info">
           <div class="doc-title">Ordem de Serviço</div>
-          <div class="doc-meta"><strong>Nº ${String(o.numero).padStart(4,"0")}</strong><br>Emissão: ${fmtDate(o.dataCriacao)}<br>Entrega: ${o.dataEntrega ? fmtDate(o.dataEntrega) : "—"}<br><span class="badge">${o.status}</span></div>
+          <div class="doc-meta"><strong>Nº ${String(o.numero).padStart(4,"0")}</strong><br>Emissão: ${fmtDate(o.dataCriacao)}<br>Entrega: ${o.dataEntrega ? fmtDate(o.dataEntrega) : "—"}<br>Previsão de pagamento: ${o.dataPagamentoPrevista ? fmtDate(o.dataPagamentoPrevista) : "—"}<br><span class="badge">${o.status}</span></div>
         </div>
       </div>
       <div class="section-title">Dados do Cliente</div>
@@ -918,6 +975,9 @@ function Ordens({ data, save, goBack }) {
                   {o.dataEntrega && (
                     <span style={{ fontSize: 11, color: "#8892A4" }}>Entrega: {fmtDate(o.dataEntrega)}</span>
                   )}
+                  {o.dataPagamentoPrevista && (
+                    <span style={{ fontSize: 11, color: "#8892A4" }}>Pagamento previsto: {fmtDate(o.dataPagamentoPrevista)}</span>
+                  )}
                 </div>
               </div>
               {/* Valor */}
@@ -984,11 +1044,12 @@ function Ordens({ data, save, goBack }) {
 
 // ─── Modal de Ordem de Serviço ────────────────────────────────────────────────
 function ModalOS({ os, pecas, processos, onSave, onClose }) {
+  const [erroContato, setErroContato] = useState("");
   const [form, setForm] = useState(() => {
     if (!os) return { cliente: "", telefone: "", documento: "", email: "",
       dataCriacao: today(), dataEntrega: "", observacoes: "",
       status: "Aberta", itens: [], processosSelecionados: [] };
-    return { ...os, itens: (os.itens || []).map(i => ({ ...i, itemId: i.itemId || genId() })) };
+    return { ...os, dataPagamentoPrevista: os.dataPagamentoPrevista || "", itens: (os.itens || []).map(i => ({ ...i, itemId: i.itemId || genId() })) };
   });
 
   const [novoPecaId, setNovoPecaId] = useState(String(pecas[0]?.id || ""));
@@ -1049,6 +1110,22 @@ function ModalOS({ os, pecas, processos, onSave, onClose }) {
     onSave({ ...form, ...calc });
   };
 
+  const importarContato = async () => {
+    setErroContato("");
+    try {
+      const contact = await ContactPicker.pickContact();
+      if (contact.cancelled) return;
+      setForm(current => ({
+        ...current,
+        cliente: contact.name || current.cliente,
+        telefone: contact.phone || current.telefone,
+      }));
+    } catch (error) {
+      if (error?.name === "AbortError") return;
+      setErroContato(error?.message || "Não foi possível abrir os contatos do aparelho.");
+    }
+  };
+
   const addProcsPreview = processosDisponiveis
     .filter(p => procSel.has(String(p.id)))
     .reduce((s, p) => s + (parseFloat(p.percentual) || 0), 0);
@@ -1059,12 +1136,20 @@ function ModalOS({ os, pecas, processos, onSave, onClose }) {
     <Modal title={os ? `✎ Editar OS #${String(os.numero).padStart(4,"0")}` : "Nova Ordem de Serviço"} onClose={onClose}>
       {/* Dados do cliente */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 16px" }}>
-        <Input label="Cliente *" value={form.cliente} onChange={e => setForm(f => ({ ...f, cliente: e.target.value }))} />
+        <div>
+          <Input label="Cliente *" value={form.cliente} onChange={e => setForm(f => ({ ...f, cliente: e.target.value }))} />
+          <button type="button" onClick={importarContato}
+            style={{ marginTop: 6, padding: "7px 10px", background: "#F4F5F7", border: "1px solid #C06E7A55", borderRadius: 7, color: "#C06E7A", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+            ☎ Importar dos contatos
+          </button>
+          {erroContato && <div role="status" style={{ marginTop: 6, color: "#D14343", fontSize: 11 }}>{erroContato}</div>}
+        </div>
         <Input label="Telefone" value={form.telefone} onChange={e => setForm(f => ({ ...f, telefone: e.target.value }))} />
         <Input label="CNPJ / CPF" value={form.documento} onChange={e => setForm(f => ({ ...f, documento: e.target.value }))} />
         <Input label="E-mail" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
         <Input label="Data de Criação" type="date" value={form.dataCriacao} onChange={e => setForm(f => ({ ...f, dataCriacao: e.target.value }))} />
         <Input label="Previsão de Entrega" type="date" value={form.dataEntrega} onChange={e => setForm(f => ({ ...f, dataEntrega: e.target.value }))} />
+        <Input label="Previsão de Pagamento" type="date" value={form.dataPagamentoPrevista} onChange={e => setForm(f => ({ ...f, dataPagamentoPrevista: e.target.value }))} />
       </div>
       <Select label="Status" value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}
         options={["Aberta","Em Produção","Finalizada","Entregue","Cancelada"].map(s => ({ value: s, label: s }))} />
@@ -3430,17 +3515,23 @@ function LoginScreen({ onLogin, licenca }) {
     setTimeout(() => onLogin({ nome: novo.nome, email: novo.email }), 1800);
   };
 
-  const handleAtivarCodigo = () => {
+  const handleAtivarCodigo = async () => {
     setErro("");
-    const cod = form.codigo.trim().toUpperCase();
-    const plano = validarLicenca(cod);
-    if (!plano) return setErro("Código inválido. Verifique e tente novamente.");
+    const cod = form.codigo.trim();
+    let licenca;
+    try {
+      licenca = await validarLicenca(cod, form.email);
+    } catch (error) {
+      setErro(error.message || "Não foi possível verificar o código neste dispositivo.");
+      return;
+    }
+    if (!licenca) return setErro("Código inválido, vencido ou emitido para outro e-mail.");
     const lista = loadUsers();
-    const user = lista.find(u => u.email === form.email);
+    const user = lista.find(u => u.email.trim().toLowerCase() === form.email.trim().toLowerCase());
     if (!user) return setErro("Faça login primeiro para ativar.");
-    const tipo = plano === "VITALICIO" ? "vitalicio" : plano === "ANUAL" ? "anual" : "mensal";
-    saveLicense({ tipo, ativadoEm: new Date().toISOString(), codigo: cod });
-    setOk(tipo === "vitalicio" ? "Licença vitalícia ativada! Bem-vindo." : `Plano ${tipo} ativado! Bem-vindo.`);
+    const tipo = licenca.plano === "ANUAL" ? "anual" : "mensal";
+    saveLicense({ tipo, ativadoEm: new Date().toISOString(), expiraEm: new Date(licenca.expiresAt).toISOString(), codigo: cod });
+    setOk(`Plano ${tipo} ativado! Bem-vindo.`);
     setTimeout(() => onLogin({ nome: user.nome, email: user.email }), 1500);
   };
 
@@ -3530,7 +3621,7 @@ function LoginScreen({ onLogin, licenca }) {
             {inp("E-mail da conta", "email", "email", "seu@email.com")}
             <div style={{ marginBottom: 12 }}>
               <label style={{ display:"block", fontSize:10, letterSpacing:1, textTransform:"uppercase", color:"#C06E7A", marginBottom:6, fontWeight:700 }}>Código de Licença</label>
-              <input value={form.codigo} placeholder="COSTURA-MENSAL-XXXX ou COSTURA-ANUAL-XXXX"
+              <input value={form.codigo} placeholder="Cole o código completo emitido para este e-mail"
                 onChange={e => { setErro(""); setForm(f => ({ ...f, codigo: e.target.value })); }}
                 onKeyDown={e => e.key === "Enter" && handleAtivarCodigo()}
                 style={{ width:"100%", background:"#F4F5F7", border:"1px solid #2a2a3e", borderRadius:8, padding:"11px 14px", color:"#C06E7A", fontSize:14, outline:"none", fontFamily:"monospace", letterSpacing:2, boxSizing:"border-box", textTransform:"uppercase" }} />
@@ -3684,7 +3775,7 @@ function Configuracoes({ empresa, save, goBack }) {
 
 
 // ─── Tela Trial Expirado ──────────────────────────────────────────────────────
-function TelaExpirado({ onAtivar, onLogout, motivo }) {
+function TelaExpirado({ onAtivar, onLogout, motivo, email }) {
   const [codigo, setCodigo] = useState("");
   const [erro, setErro] = useState("");
   const [ok, setOk] = useState("");
@@ -3692,17 +3783,22 @@ function TelaExpirado({ onAtivar, onLogout, motivo }) {
   const mensalVencida = motivo === "mensal_vencida";
   const anualVencida = motivo === "anual_vencida";
 
-  const ativar = () => {
+  const ativar = async () => {
     setErro(""); setOk("");
-    const cod = codigo.trim().toUpperCase();
-    const plano = validarLicenca(cod);
-    if (!plano) { setErro("Código inválido. Verifique e tente novamente."); return; }
-    const tipo = plano === "VITALICIO" ? "vitalicio" : plano === "ANUAL" ? "anual" : "mensal";
-    saveLicense({ tipo, ativadoEm: new Date().toISOString(), codigo: cod });
-    setOk(tipo === "vitalicio"
-      ? "✦ Licença vitalícia ativada! Acesso permanente."
-      : `Assinatura ${tipo} ativada por ${tipo === "anual" ? "365 dias" : "30 dias"}!`);
-    setTimeout(() => onAtivar(tipo), 1500);
+    const cod = codigo.trim();
+    let licenca;
+    try {
+      licenca = await validarLicenca(cod, email);
+    } catch (error) {
+      setErro(error.message || "Não foi possível verificar o código neste dispositivo.");
+      return;
+    }
+    if (!licenca) { setErro("Código inválido, vencido ou emitido para outro e-mail."); return; }
+    const tipo = licenca.plano === "ANUAL" ? "anual" : "mensal";
+    const expiraEm = new Date(licenca.expiresAt).toISOString();
+    saveLicense({ tipo, ativadoEm: new Date().toISOString(), expiraEm, codigo: cod });
+    setOk(`Assinatura ${tipo} ativada por ${tipo === "anual" ? "365 dias" : "30 dias"}!`);
+    setTimeout(() => onAtivar(tipo, licenca.expiresAt, cod), 1500);
   };
 
   const PLANOS = [
@@ -3788,7 +3884,7 @@ function TelaExpirado({ onAtivar, onLogout, motivo }) {
           value={codigo}
           onChange={e => { setCodigo(e.target.value); setErro(""); setOk(""); }}
           onKeyDown={e => e.key === "Enter" && ativar()}
-          placeholder="COSTURA-MENSAL-XXXX ou COSTURA-ANUAL-XXXX"
+          placeholder="Cole o código completo emitido para este e-mail"
           style={{ width:"100%", background:"rgba(255,255,255,0.08)", border:`1.5px solid ${erro?"#FF6B6B":"rgba(255,255,255,0.15)"}`, borderRadius:10, padding:"12px 14px", color:"#FFF", fontSize:12, outline:"none", textAlign:"center", fontFamily:"monospace", letterSpacing:1, boxSizing:"border-box", marginBottom:10 }}
         />
         {erro && <div style={{ background:"rgba(255,107,107,0.15)", border:"1px solid rgba(255,107,107,0.3)", borderRadius:8, padding:"9px 14px", marginBottom:10, fontSize:13, color:"#FF6B6B", textAlign:"center" }}>{erro}</div>}
