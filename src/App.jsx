@@ -167,7 +167,7 @@ const today = () => new Date().toISOString().split("T")[0];
 const isOrdemPaga = (o) => Boolean(o?.pago);
 const isOrdemAReceber = (o) => {
   if (!o || o.status === "Cancelada") return false;
-  if (o.status === "Entregue") return !isOrdemPaga(o);
+  if (o.status === "Entregue") return false;
   return ["Aberta", "Em Produção", "Finalizada"].includes(o.status);
 };
 const isOrdemEmEntrada = (o) => Boolean(o?.pago) && o?.status === "Entregue";
@@ -496,10 +496,10 @@ const Select = ({ label, options, ...p }) => (
 
 const Btn = ({ children, variant = "primary", ...p }) => {
   const styles = {
-    primary: { background:"linear-gradient(135deg,#6C63FF,#5A52D5)", color:"#FFF", fontWeight:700, boxShadow:"0 4px 14px #6C63FF33", border:"none" },
-    secondary: { background:"#F0EFFE", color:"#C06E7A", border:"1.5px solid #6C63FF33", fontWeight:600 },
-    danger: { background:"#FFF0F0", color:"#FF6B6B", border:"1.5px solid #FF6B6B44", fontWeight:600 },
-    ghost: { background:"transparent", color:"#8892A4", border:"1.5px solid #E2E5EC", fontWeight:500 },
+    primary: { background:"linear-gradient(135deg,#3b82f6,#2563eb)", color:"#FFF", fontWeight:700, boxShadow:"0 8px 24px rgba(59,130,246,0.28)", border:"1px solid rgba(96,165,250,0.35)" },
+    secondary: { background:"rgba(148,163,184,0.12)", color:"#E2E8F0", border:"1px solid rgba(148,163,184,0.22)", fontWeight:600 },
+    danger: { background:"rgba(239,68,68,0.12)", color:"#FCA5A5", border:"1px solid rgba(239,68,68,0.3)", fontWeight:600 },
+    ghost: { background:"rgba(15,23,42,0.35)", color:"#CBD5E1", border:"1px solid rgba(148,163,184,0.22)", fontWeight:500 },
   };
   return (
     <button {...p} style={{ padding:"10px 20px", borderRadius:10, cursor:"pointer", fontSize:13, fontWeight:600, transition:"all 0.18s", fontFamily:"inherit", ...styles[variant], ...p.style }}>
@@ -509,7 +509,7 @@ const Btn = ({ children, variant = "primary", ...p }) => {
 };
 
 const Card = ({ children, style }) => (
-  <div style={{ background:"rgba(255,255,255,0.06)", backdropFilter:"blur(16px)", border:"1px solid rgba(192,110,122,0.15)", borderRadius:18, padding:22, ...style }}>{children}</div>
+  <div style={{ background:"rgba(15,23,42,0.7)", backdropFilter:"blur(16px)", border:"1px solid rgba(148,163,184,0.16)", borderRadius:18, padding:22, boxShadow:"0 10px 30px rgba(15,23,42,0.18)", ...style }}>{children}</div>
 );
 
 const Badge = ({ children, color = "#C06E7A" }) => (
@@ -517,11 +517,11 @@ const Badge = ({ children, color = "#C06E7A" }) => (
 );
 
 const Modal = ({ title, onClose, children }) => (
-  <div style={{ position:"fixed", inset:0, background:"rgba(10,8,30,0.85)", backdropFilter:"blur(16px)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
-    <div style={{ background:"linear-gradient(145deg,#2C1A1D,#4A2428)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:22, width:"100%", maxWidth:640, maxHeight:"90vh", overflow:"auto", boxShadow:"0 32px 80px rgba(0,0,0,0.5)" }}>
-      <div style={{ padding:"22px 28px", borderBottom:"1px solid rgba(255,255,255,0.08)", display:"flex", justifyContent:"space-between", alignItems:"center", position:"sticky", top:0, background:"linear-gradient(145deg,#2C1A1D,#4A2428)", zIndex:1 }}>
-        <span style={{ fontWeight:800, fontSize:17, color:"#FFF" }}>{title}</span>
-        <button onClick={onClose} style={{ background:"rgba(255,255,255,0.08)", border:"none", borderRadius:8, width:34, height:34, cursor:"pointer", fontSize:15, color:"rgba(255,255,255,0.5)", display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
+  <div style={{ position:"fixed", inset:0, background:"rgba(2,6,23,0.72)", backdropFilter:"blur(16px)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+    <div style={{ background:"linear-gradient(145deg,#111827,#1f2937)", border:"1px solid rgba(148,163,184,0.18)", borderRadius:22, width:"100%", maxWidth:640, maxHeight:"90vh", overflow:"auto", boxShadow:"0 24px 60px rgba(2,6,23,0.5)" }}>
+      <div style={{ padding:"22px 28px", borderBottom:"1px solid rgba(148,163,184,0.12)", display:"flex", justifyContent:"space-between", alignItems:"center", position:"sticky", top:0, background:"linear-gradient(145deg,#111827,#1f2937)", zIndex:1 }}>
+        <span style={{ fontWeight:800, fontSize:17, color:"#F8FAFC" }}>{title}</span>
+        <button onClick={onClose} style={{ background:"rgba(148,163,184,0.12)", border:"none", borderRadius:8, width:34, height:34, cursor:"pointer", fontSize:15, color:"rgba(226,232,240,0.76)", display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
       </div>
       <div style={{ padding:28 }}>{children}</div>
     </div>
@@ -580,7 +580,7 @@ function SplashScreen({ fadeOut }) {
   return (
     <div style={{
       position:"fixed", inset:0,
-      background:"linear-gradient(160deg,#FAF0EE 0%,#F2DDD8 60%,#EEC4C8 100%)",
+      background:"linear-gradient(160deg,#2b2d30 0%,#3a3d40 55%,#222529 100%)",
       display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
       opacity: fadeOut ? 0 : 1,
       transition: "opacity 0.6s ease",
@@ -597,17 +597,17 @@ function SplashScreen({ fadeOut }) {
       />
       {/* Barra de progresso sobreposta no fundo */}
       <div style={{ width:"min(280px,70vw)", zIndex:2 }}>
-        <div style={{ fontSize:12, color:"#C06E7A", textAlign:"center", marginBottom:10, fontFamily:"Georgia, serif", letterSpacing:1 }}>
+        <div style={{ fontSize:12, color:"#93c5fd", textAlign:"center", marginBottom:10, fontFamily:"Georgia, serif", letterSpacing:1 }}>
           Carregando...
         </div>
-        <div style={{ height:6, background:"#EED5D2", borderRadius:10, overflow:"hidden" }}>
+        <div style={{ height:6, background:"rgba(148,163,184,0.18)", borderRadius:10, overflow:"hidden" }}>
           <div style={{
-            height:"100%", background:"linear-gradient(90deg,#C06E7A,#E8A0AA)",
+            height:"100%", background:"linear-gradient(90deg,#60a5fa,#2563eb)",
             borderRadius:10, width:`${progress}%`,
             transition:"width 0.15s ease",
           }} />
         </div>
-        <div style={{ textAlign:"center", marginTop:16, fontSize:18, color:"#C06E7A" }}>✦</div>
+        <div style={{ textAlign:"center", marginTop:16, fontSize:18, color:"#93c5fd" }}>✦</div>
       </div>
     </div>
   );
@@ -659,15 +659,15 @@ function OficinaApp({ session, onLogout, licenca, onAtivar }) {
   const totalPecas = data.ordens.reduce((s, o) => s + (o.itens?.reduce((a, i) => a + i.qtdTotal, 0) || 0), 0);
 
   return (
-    <div style={{ minHeight:"100vh", background:"linear-gradient(160deg,#2C1A1D 0%,#4A2428 40%,#3D1E22 100%)", color:"#1C1C2E", fontFamily:"'Inter','Segoe UI',system-ui,sans-serif", display:"flex", flexDirection:"column" }}>
+    <div style={{ minHeight:"100vh", background:"linear-gradient(180deg,#0f172a 0%,#111827 38%,#1f2937 100%)", color:"#E2E8F0", fontFamily:"'Inter','Segoe UI',system-ui,sans-serif", display:"flex", flexDirection:"column" }}>
 
       {/* Header topo — logo + usuário */}
-      <div style={{ background:"rgba(60,20,24,0.95)", backdropFilter:"blur(20px)", borderBottom:"1px solid rgba(192,110,122,0.15)", padding:"0 24px", display:"flex", alignItems:"center", justifyContent:"space-between", height:60, flexShrink:0, position:"sticky", top:0, zIndex:100 }}>
+      <div style={{ background:"rgba(15,23,42,0.82)", backdropFilter:"blur(20px)", borderBottom:"1px solid rgba(148,163,184,0.12)", padding:"0 24px", display:"flex", alignItems:"center", justifyContent:"space-between", height:60, flexShrink:0, position:"sticky", top:0, zIndex:100 }}>
         <button onClick={() => setTab("dashboard")} style={{ background:"transparent", border:"none", cursor:"pointer", display:"flex", alignItems:"center", gap:10 }}>
-          <div style={{ width:34, height:34, borderRadius:10, background:"linear-gradient(135deg,#C06E7A,#E8A0AA)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, color:"#FFF", fontWeight:900 }}>A</div>
+        <div style={{ width:34, height:34, borderRadius:10, background:"linear-gradient(135deg,#60a5fa,#2563eb)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, color:"#FFF", fontWeight:900 }}>A</div>
           <div style={{ textAlign:"left" }}>
-            <div style={{ fontSize:14, fontWeight:800, color:"#FFF", letterSpacing:-0.3 }}>Atelier Costura Pro</div>
-            <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", letterSpacing:2 }}>ZEMCOST.COM.BR</div>
+          <div style={{ fontSize:14, fontWeight:800, color:"#F8FAFC", letterSpacing:-0.3 }}>Atelier Costura Pro</div>
+          <div style={{ fontSize:9, color:"rgba(148,163,184,0.8)", letterSpacing:2 }}>ZEMCOST.COM.BR</div>
           </div>
         </button>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
@@ -695,7 +695,7 @@ function OficinaApp({ session, onLogout, licenca, onAtivar }) {
             <div style={{ fontSize:12, color:"#FFF", fontWeight:700 }}>{session.nome}</div>
             <div style={{ fontSize:9, color:"rgba(255,255,255,0.35)" }}>{new Date().toLocaleDateString("pt-BR",{day:"2-digit",month:"short"})}</div>
           </div>
-          <button onClick={onLogout} style={{ background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:8, padding:"6px 12px", color:"rgba(255,255,255,0.5)", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>
+          <button onClick={onLogout} style={{ background:"rgba(148,163,184,0.08)", border:"1px solid rgba(148,163,184,0.18)", borderRadius:8, padding:"6px 12px", color:"rgba(226,232,240,0.82)", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>
             ⏻ Sair
           </button>
         </div>
@@ -2063,10 +2063,15 @@ function Producao({ ordens, saveOrdens, goBack }) {
                   </button>
                 ))}
                 {o.status === "Entregue" && !o.pago && (
-                  <button onClick={() => setPagando({ orderId: o.id, clienteNome: o.cliente, numero: o.numero, valor: o.valorTotal })}
-                    style={{ padding: "6px 14px", borderRadius: 20, border: "1px solid #00C89655", background: "#00C89618", color: "#00C896", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "Georgia, serif" }}>
-                    💳 Receber
-                  </button>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, marginLeft:"auto" }}>
+                    <span style={{ fontSize:10, color:"#F7C948", fontWeight:700, letterSpacing:1, textTransform:"uppercase", background:"rgba(247,201,72,0.12)", border:"1px solid rgba(247,201,72,0.25)", borderRadius:20, padding:"5px 10px" }}>
+                      Pagamento pendente
+                    </span>
+                    <button onClick={() => setPagando({ orderId: o.id, clienteNome: o.cliente, numero: o.numero, valor: o.valorTotal })}
+                      style={{ padding: "6px 14px", borderRadius: 20, border: "1px solid #00C89655", background: "#00C89618", color: "#00C896", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "Georgia, serif" }}>
+                      💳 Confirmar recebimento
+                    </button>
+                  </div>
                 )}
                 {o.status !== "Cancelada" && (
                   <button onClick={() => setConfirmando({ orderId: o.id, novoStatus: "Cancelada", clienteNome: o.cliente, numero: o.numero })}
@@ -2493,7 +2498,7 @@ function Financeiro({ ordens, despesas, saveDespesas, saveOrdens, goBack }) {
       {/* Confirmar exclusão */}
       {confirmarExcDesp && (
         <div style={{ position:"fixed", inset:0, background:"rgba(10,8,30,0.85)", backdropFilter:"blur(10px)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
-          <div style={{ background:"linear-gradient(145deg,#2C1A1D,#4A2428)", border:"1px solid rgba(255,107,107,0.3)", borderRadius:20, padding:32, maxWidth:340, width:"100%", textAlign:"center" }}>
+          <div style={{ background:"linear-gradient(145deg,#2a2d30,#3a3d40)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:20, padding:32, maxWidth:340, width:"100%", textAlign:"center" }}>
             <div style={{ fontSize:40, marginBottom:12 }}>✕</div>
             <div style={{ fontWeight:800, fontSize:17, color:"#FFF", marginBottom:8 }}>Excluir despesa?</div>
             <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", marginBottom:24 }}>Esta ação não pode ser desfeita.</div>
@@ -2864,7 +2869,7 @@ function FinanceiroPessoal({ lucroAtelier, gastos, saveGastos, goBack }) {
 
       {confirmarExc && (
         <div style={{ position:"fixed", inset:0, background:"rgba(10,8,30,0.85)", backdropFilter:"blur(10px)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
-          <div style={{ background:"linear-gradient(145deg,#2C1A1D,#4A2428)", border:"1px solid rgba(255,107,107,0.3)", borderRadius:20, padding:32, maxWidth:340, width:"100%", textAlign:"center" }}>
+          <div style={{ background:"linear-gradient(145deg,#2a2d30,#3a3d40)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:20, padding:32, maxWidth:340, width:"100%", textAlign:"center" }}>
             <div style={{ fontSize:40, marginBottom:12 }}>✕</div>
             <div style={{ fontWeight:800, fontSize:17, color:"#FFF", marginBottom:8 }}>Excluir lançamento?</div>
             <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", marginBottom:24 }}>Esta ação não pode ser desfeita.</div>
@@ -3546,7 +3551,7 @@ function LoginScreen({ onLogin, licenca }) {
   );
 
   return (
-    <div style={{ minHeight:"100vh", background:"#F8F9FB", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"Georgia, serif", padding:20 }}>
+    <div style={{ minHeight:"100vh", background:"radial-gradient(circle at top, #1e293b 0%, #111827 35%, #0f172a 100%)", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Inter', 'Segoe UI', sans-serif", padding:20 }}>
       <div style={{ position:"fixed", inset:0, overflow:"hidden", pointerEvents:"none" }}>
         {[...Array(6)].map((_,i) => (
           <div key={i} style={{ position:"absolute", width:300+i*80, height:300+i*80, border:"1px solid #c8a96e0a", borderRadius:"50%", top:"50%", left:"50%", transform:"translate(-50%,-50%)" }} />
@@ -3826,7 +3831,7 @@ function TelaExpirado({ onAtivar, onLogout, motivo, email }) {
   ];
 
   return (
-    <div style={{ minHeight:"100vh", background:"linear-gradient(145deg,#1C1C2E,#2D2B55)", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:"'Inter',system-ui,sans-serif", padding:20 }}>
+    <div style={{ minHeight:"100vh", background:"linear-gradient(145deg,#2a2d30,#3a3d40)", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:"'Inter',system-ui,sans-serif", padding:20 }}>
 
       {/* Logo */}
       <div style={{ textAlign:"center", marginBottom:28 }}>
