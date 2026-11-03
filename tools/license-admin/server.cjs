@@ -5,6 +5,7 @@ const http = require("node:http");
 const os = require("node:os");
 const path = require("node:path");
 const { createLicenseCode, validateLicenseCode, normalizeEmail } = require("./license-code.cjs");
+const { createDeviceLicenseCode, validateDeviceLicenseCode, normalizeDeviceId } = require("./device-license.cjs");
 
 const repositoryRoot = path.resolve(__dirname, "..", "..");
 const dataDirectory = path.join(
@@ -149,13 +150,15 @@ async function main() {
           const customer = typeof body.customer === "string" ? body.customer.trim() : "";
           if (!customer || customer.length > 100) throw Object.assign(new Error("Informe o nome do cliente (até 100 caracteres)."), { status: 400 });
           const email = normalizeEmail(body.email);
-          const result = createLicenseCode({ plan: body.plan, email, privateKey });
+          const deviceId = normalizeDeviceId(body.deviceId);
+          const result = createDeviceLicenseCode({ plan: body.plan, deviceId });
           const entry = {
             id: crypto.randomUUID(),
             customer,
             email,
-            plan: body.plan,
-            generatedAt: new Date(result.issuedAt).toLocaleString("pt-BR"),
+            deviceId,
+            plan: result.plan,
+            generatedAt: new Date().toLocaleString("pt-BR"),
             expiresAt: new Date(result.expiresAt).toLocaleDateString("pt-BR"),
             code: result.code,
           };
@@ -166,7 +169,8 @@ async function main() {
           return;
         }
         if (url.pathname === "/api/validate") {
-          const verification = validateLicenseCode(body.code, { publicKey, email: body.email });
+          const verification = validateDeviceLicenseCode(body.code, { deviceId: body.deviceId })
+            || validateLicenseCode(body.code, { publicKey, email: body.email });
           json(response, 200, verification
             ? { valid: true, plan: verification.plan, expiresAt: new Date(verification.expiresAt).toLocaleDateString("pt-BR") }
             : { valid: false });

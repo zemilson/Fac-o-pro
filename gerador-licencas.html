@@ -50,6 +50,8 @@
         <input id="customer" maxlength="100" autocomplete="off">
         <label for="email">E-mail da conta do cliente</label>
         <input id="email" type="email" maxlength="254" autocomplete="off">
+        <label for="device-id">Código do aparelho informado pelo cliente</label>
+        <input id="device-id" maxlength="64" autocomplete="off" placeholder="Ex.: a1b2c3d4-e5f6-47a8-9b01-23456789abcd">
         <label for="plan">Plano</label>
         <select id="plan">
           <option value="MENSAL">Mensal — 30 dias</option>
@@ -67,6 +69,8 @@
         <h2>Validar código</h2>
         <label for="validate-code">Código de licença</label>
         <input id="validate-code" autocomplete="off">
+        <label for="validate-device-id">Código do aparelho</label>
+        <input id="validate-device-id" maxlength="64" autocomplete="off">
         <label for="validate-email">E-mail da conta</label>
         <input id="validate-email" type="email" autocomplete="off">
         <div class="row"><button class="secondary" id="validate-button">Verificar</button></div>
@@ -126,7 +130,7 @@
       historyList.innerHTML = entries.map(entry => `
         <article class="entry">
           <strong>${escapeHtml(entry.customer)}</strong>
-          <div class="entry-meta">${escapeHtml(entry.email)} · ${escapeHtml(entry.plan)} · Emitido em ${escapeHtml(entry.generatedAt)} · Vence em ${escapeHtml(entry.expiresAt)}</div>
+          <div class="entry-meta">${escapeHtml(entry.email)} · ${escapeHtml(entry.plan)} · Aparelho ${escapeHtml(entry.deviceId || "licença antiga")} · Emitido em ${escapeHtml(entry.generatedAt)} · Vence em ${escapeHtml(entry.expiresAt)}</div>
           <div class="code">${escapeHtml(entry.code)}</div>
           <div class="row">
             <button class="secondary" data-copy="${escapeHtml(entry.id)}">Copiar</button>
@@ -153,12 +157,13 @@
       generated.hidden = true;
       const customer = document.getElementById("customer").value.trim();
       const email = document.getElementById("email").value.trim();
+      const deviceId = document.getElementById("device-id").value.trim();
       const plan = document.getElementById("plan").value;
-      if (!customer || !email) {
-        message.textContent = "Informe o nome do cliente e o e-mail da conta.";
+      if (!customer || !email || !deviceId) {
+        message.textContent = "Informe o nome, o e-mail e o código do aparelho.";
         return;
       }
-      if (!confirm(`Emitir uma licença ${plan} válida para ${email}? O código não poderá ser revogado neste gerador.`)) return;
+      if (!confirm(`Emitir uma licença ${plan} para ${email}, vinculada a este aparelho? O código não poderá ser revogado neste gerador.`)) return;
       button.disabled = true;
       try {
         const result = await api("/api/generate", {
@@ -166,6 +171,7 @@
           body: {
             customer,
             email,
+            deviceId,
             plan,
           },
         });
@@ -212,6 +218,7 @@
           method: "POST",
           body: {
             code: document.getElementById("validate-code").value,
+            deviceId: document.getElementById("validate-device-id").value,
             email: document.getElementById("validate-email").value,
           },
         });
@@ -226,7 +233,7 @@
     document.getElementById("export-button").addEventListener("click", async () => {
       try {
         const { history: entries } = await api("/api/history");
-        const text = entries.map(entry => [entry.generatedAt, entry.customer, entry.email, entry.plan, entry.expiresAt, entry.code].join(" | ")).join("\n");
+        const text = entries.map(entry => [entry.generatedAt, entry.customer, entry.email, entry.deviceId || "", entry.plan, entry.expiresAt, entry.code].join(" | ")).join("\n");
         const link = document.createElement("a");
         link.href = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }));
         link.download = "licencas-atelier-costura.txt";

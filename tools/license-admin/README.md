@@ -30,10 +30,10 @@ Também é possível iniciar pelo PowerShell:
 npm run codes:admin
 ```
 
-Informe o nome e o e-mail usados na conta do cliente, escolha o plano e confirme a emissão. O histórico fica no arquivo local `history.json`, na mesma pasta de dados da chave; é possível copiar, excluir do histórico ou exportar os registros.
+No app do cliente, peça para abrir **Ativar Licença** e enviar o **código do aparelho** exibido nessa tela. No gerador, informe nome, e-mail, código do aparelho e plano. Envie o serial gerado pelo WhatsApp; ele tem quatro grupos de seis dígitos. O histórico local registra também o aparelho ao qual cada serial foi vinculado.
 
-Os códigos são assinados com a chave privada, vinculados ao e-mail informado e vencem 30 dias (mensal) ou 365 dias (anual) após a emissão. A validação ocorre no app com a chave pública. Preserve a grafia do código ao copiá-lo; os segmentos da assinatura diferenciam maiúsculas e minúsculas.
+O app verifica o serial offline e o vincula ao identificador persistido naquela instalação. A ativação mensal vence em 30 dias e a anual em 365 dias. O app continua aceitando códigos antigos assinados com RSA.
 
 ## Limites importantes
 
-O gerador e os dados de clientes ficam neste computador, mas a assinatura não é um serviço de ativação online: o app trabalha offline e não consegue impedir que o mesmo código seja reutilizado pelo mesmo e-mail antes do vencimento. Como o app armazena licenças localmente, esta abordagem também não impede adulterações feitas diretamente por alguém com controle do dispositivo. Para bloquear reuso, revogar licenças ou impor vencimentos contra adulteração local, é necessário validar licenças em um servidor online autenticado.
+O serial curto permite ativação sem servidor, mas não oferece proteção criptográfica forte: a chave de validação precisa estar no app e pode ser extraída por alguém que analise o aplicativo. O vínculo é com o identificador salvo na instalação, não com um identificador de hardware inviolável; apagar os dados ou reinstalar o app pode gerar outro identificador. Assim, o fluxo desencoraja o uso casual em outro aparelho, mas não impede falsificação, cópia dos dados, revogação ou adulteração local. Para essas garantias, é necessário um serviço online autenticado e códigos assinados mais longos.

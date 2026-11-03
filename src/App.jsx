@@ -3,6 +3,7 @@ import { registerPlugin } from "@capacitor/core";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { LICENSE_PUBLIC_KEY } from "./license-public-key.js";
+import deviceLicenseConfig from "./license-device-key.json";
 
 const ContactPicker = registerPlugin("ContactPicker", {
   web: {
@@ -27,6 +28,55 @@ const TRIAL_DIAS    = 15;
 const STORAGE_AUTH    = "oficina_auth";
 const STORAGE_USERS   = "oficina_users";
 const STORAGE_LICENSE = "oficina_license";
+const STORAGE_DEVICE_ID = "oficina_device_id";
+const LICENSE_DEVICE_KEY = deviceLicenseConfig.LICENSE_DEVICE_KEY;
+const LICENSE_DAY_MS = 24 * 60 * 60 * 1000;
+
+function getOrCreateDeviceId() {
+  const stored = localStorage.getItem(STORAGE_DEVICE_ID);
+  if (stored && /^[a-f0-9-]{16,64}$/i.test(stored)) return stored.toLowerCase();
+  if (!globalThis.crypto?.getRandomValues) {
+    throw new Error("Não foi possível gerar o identificador deste aparelho.");
+  }
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join("");
+  const deviceId = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  localStorage.setItem(STORAGE_DEVICE_ID, deviceId);
+  return deviceId;
+}
+
+let deviceLicenseKeyPromise;
+async function validarCodigoDispositivo(codigo, deviceId) {
+  if (typeof codigo !== "string" || typeof deviceId !== "string") return null;
+  const digits = codigo.replace(/[\s-]/g, "");
+  if (!/^\d{24}$/.test(digits) || !/^[a-f0-9-]{16,64}$/i.test(deviceId)) return null;
+  const plano = digits[0] === "1" ? "MENSAL" : digits[0] === "2" ? "ANUAL" : null;
+  const expirationDay = Number(digits.slice(1, 6));
+  if (!plano || expirationDay < Math.floor(Date.now() / LICENSE_DAY_MS)) return null;
+
+  if (!globalThis.crypto?.subtle) {
+    throw new Error("Este aparelho não oferece suporte à verificação segura de licenças.");
+  }
+  deviceLicenseKeyPromise ??= crypto.subtle.importKey(
+    "raw",
+    Uint8Array.from(LICENSE_DEVICE_KEY.match(/.{2}/g), byte => parseInt(byte, 16)),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const message = `ATELIER-DEVICE-V1|${deviceId.trim().toLowerCase()}|${digits[0]}|${expirationDay}`;
+  const signature = new Uint8Array(await crypto.subtle.sign(
+    "HMAC",
+    await deviceLicenseKeyPromise,
+    new TextEncoder().encode(message)
+  ));
+  const signaturePrefix = Array.from(signature.slice(0, 8), byte => byte.toString(16).padStart(2, "0")).join("");
+  const expectedMac = (BigInt(`0x${signaturePrefix}`) % 10n ** 18n).toString().padStart(18, "0");
+  if (digits.slice(6) !== expectedMac) return null;
+  return { plano, expiresAt: (expirationDay + 1) * LICENSE_DAY_MS };
+}
 
 function base64UrlToBytes(value) {
   const base64 = value.replace(/-/g, "+").replace(/_/g, "/");
@@ -3498,6 +3548,16 @@ function LoginScreen({ onLogin, licenca }) {
   const [form, setForm] = useState({ nome: "", email: "", senha: "", confirmar: "", codigo: "" });
   const [erro, setErro] = useState("");
   const [ok, setOk] = useState("");
+  const [deviceId, setDeviceId] = useState("");
+  const [deviceIdError, setDeviceIdError] = useState("");
+
+  useEffect(() => {
+    try {
+      setDeviceId(getOrCreateDeviceId());
+    } catch (error) {
+      setDeviceIdError(error.message || "Não foi possível identificar este aparelho.");
+    }
+  }, []);
 
   const handleLogin = () => {
     setErro("");
@@ -3525,12 +3585,14 @@ function LoginScreen({ onLogin, licenca }) {
     const cod = form.codigo.trim();
     let licenca;
     try {
-      licenca = await validarLicenca(cod, form.email);
+      if (!deviceId) return setErro(deviceIdError || "Não foi possível identificar este aparelho.");
+      licenca = await validarCodigoDispositivo(cod, deviceId);
+      if (!licenca) licenca = await validarLicenca(cod, form.email);
     } catch (error) {
       setErro(error.message || "Não foi possível verificar o código neste dispositivo.");
       return;
     }
-    if (!licenca) return setErro("Código inválido, vencido ou emitido para outro e-mail.");
+    if (!licenca) return setErro("Código inválido, vencido ou emitido para outro aparelho.");
     const lista = loadUsers();
     const user = lista.find(u => u.email.trim().toLowerCase() === form.email.trim().toLowerCase());
     if (!user) return setErro("Faça login primeiro para ativar.");
@@ -3624,9 +3686,15 @@ function LoginScreen({ onLogin, licenca }) {
               </div>
             </div>
             {inp("E-mail da conta", "email", "email", "seu@email.com")}
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display:"block", fontSize:10, letterSpacing:1, textTransform:"uppercase", color:"#C06E7A", marginBottom:6, fontWeight:700 }}>Código deste aparelho — envie ao administrador</label>
+              <input readOnly value={deviceId || deviceIdError || "Preparando identificador..."} onFocus={event => event.currentTarget.select()}
+                style={{ width:"100%", padding:"11px 14px", background:"#F4F5F7", border:"1px solid #1e2030", borderRadius:8, color:"#1C1C2E", fontSize:13, fontFamily:"monospace", boxSizing:"border-box" }} />
+              <div style={{ fontSize:11, color:"#6B7280", marginTop:5 }}>O código de ativação será válido para esta instalação.</div>
+            </div>
             <div style={{ marginBottom: 12 }}>
               <label style={{ display:"block", fontSize:10, letterSpacing:1, textTransform:"uppercase", color:"#C06E7A", marginBottom:6, fontWeight:700 }}>Código de Licença</label>
-              <input value={form.codigo} placeholder="Cole o código completo emitido para este e-mail"
+              <input value={form.codigo} maxLength={27} placeholder="000000-000000-000000-000000"
                 onChange={e => { setErro(""); setForm(f => ({ ...f, codigo: e.target.value })); }}
                 onKeyDown={e => e.key === "Enter" && handleAtivarCodigo()}
                 style={{ width:"100%", background:"#F4F5F7", border:"1px solid #2a2a3e", borderRadius:8, padding:"11px 14px", color:"#C06E7A", fontSize:14, outline:"none", fontFamily:"monospace", letterSpacing:2, boxSizing:"border-box", textTransform:"uppercase" }} />
@@ -3784,21 +3852,33 @@ function TelaExpirado({ onAtivar, onLogout, motivo, email }) {
   const [codigo, setCodigo] = useState("");
   const [erro, setErro] = useState("");
   const [ok, setOk] = useState("");
+  const [deviceId, setDeviceId] = useState("");
+  const [deviceIdError, setDeviceIdError] = useState("");
 
   const mensalVencida = motivo === "mensal_vencida";
   const anualVencida = motivo === "anual_vencida";
+
+  useEffect(() => {
+    try {
+      setDeviceId(getOrCreateDeviceId());
+    } catch (error) {
+      setDeviceIdError(error.message || "Não foi possível identificar este aparelho.");
+    }
+  }, []);
 
   const ativar = async () => {
     setErro(""); setOk("");
     const cod = codigo.trim();
     let licenca;
     try {
-      licenca = await validarLicenca(cod, email);
+      if (!deviceId) return setErro(deviceIdError || "Não foi possível identificar este aparelho.");
+      licenca = await validarCodigoDispositivo(cod, deviceId);
+      if (!licenca) licenca = await validarLicenca(cod, email);
     } catch (error) {
       setErro(error.message || "Não foi possível verificar o código neste dispositivo.");
       return;
     }
-    if (!licenca) { setErro("Código inválido, vencido ou emitido para outro e-mail."); return; }
+    if (!licenca) { setErro("Código inválido, vencido ou emitido para outro aparelho."); return; }
     const tipo = licenca.plano === "ANUAL" ? "anual" : "mensal";
     const expiraEm = new Date(licenca.expiresAt).toISOString();
     saveLicense({ tipo, ativadoEm: new Date().toISOString(), expiraEm, codigo: cod });
@@ -3852,6 +3932,12 @@ function TelaExpirado({ onAtivar, onLogout, motivo, email }) {
         </div>
       </div>
 
+      <div style={{ width:"100%", maxWidth:560, marginBottom:24, padding:16, borderRadius:12, background:"rgba(255,255,255,0.07)", color:"#FFF" }}>
+        <div style={{ fontSize:11, color:"rgba(255,255,255,0.62)", marginBottom:6 }}>Código deste aparelho — envie ao administrador</div>
+        <input readOnly value={deviceId || deviceIdError || "Preparando identificador..."} onFocus={event => event.currentTarget.select()}
+          style={{ width:"100%", padding:"10px 12px", borderRadius:8, border:"1px solid rgba(255,255,255,0.15)", background:"rgba(255,255,255,0.06)", color:"#FFF", fontFamily:"monospace", fontSize:13, boxSizing:"border-box" }} />
+      </div>
+
       {/* Cards de planos */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))", gap:16, width:"100%", maxWidth:560, marginBottom:32 }}>
         {PLANOS.map(p => (
@@ -3889,7 +3975,8 @@ function TelaExpirado({ onAtivar, onLogout, motivo, email }) {
           value={codigo}
           onChange={e => { setCodigo(e.target.value); setErro(""); setOk(""); }}
           onKeyDown={e => e.key === "Enter" && ativar()}
-          placeholder="Cole o código completo emitido para este e-mail"
+          maxLength={27}
+          placeholder="000000-000000-000000-000000"
           style={{ width:"100%", background:"rgba(255,255,255,0.08)", border:`1.5px solid ${erro?"#FF6B6B":"rgba(255,255,255,0.15)"}`, borderRadius:10, padding:"12px 14px", color:"#FFF", fontSize:12, outline:"none", textAlign:"center", fontFamily:"monospace", letterSpacing:1, boxSizing:"border-box", marginBottom:10 }}
         />
         {erro && <div style={{ background:"rgba(255,107,107,0.15)", border:"1px solid rgba(255,107,107,0.3)", borderRadius:8, padding:"9px 14px", marginBottom:10, fontSize:13, color:"#FF6B6B", textAlign:"center" }}>{erro}</div>}
